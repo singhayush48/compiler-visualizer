@@ -14,7 +14,7 @@ const TokenTable = ({ tokens }) => {
   const [filterText, setFilterText] = useState("");
   const [showFilters, setShowFilters] = useState(false);
 
-  if (!tokens || tokens.length === 0) {
+  if (!tokens || !Array.isArray(tokens) || tokens.length === 0) {
     return (
       <div className="bg-slate-50 rounded-lg p-6 text-center">
         <FiInfo className="w-8 h-8 text-slate-400 mx-auto mb-2" />
@@ -26,29 +26,47 @@ const TokenTable = ({ tokens }) => {
     );
   }
 
-  // Filter tokens based on search text
-  const filteredTokens = tokens.filter(
-    (token) =>
-      token.lexeme.toLowerCase().includes(filterText.toLowerCase()) ||
-      token.token.toLowerCase().includes(filterText.toLowerCase()) ||
-      (token.attribute &&
-        token.attribute
-          .toString()
-          .toLowerCase()
-          .includes(filterText.toLowerCase()))
-  );
+  const normalizedTokens = tokens.map((token, index) => {
+    if (token.lexeme && token.token) {
+      return token;
+    }
 
-  // Sort tokens
+    return {
+      lexeme: token.value || token.lexeme || "",
+      token: token.type || token.token || "UNKNOWN",
+      attribute: token.attribute || token.line || null,
+      _original: token,
+      _index: index,
+    };
+  });
+
+  const filteredTokens = normalizedTokens.filter((token) => {
+    if (!token) return false;
+
+    const lexeme = (token.lexeme || "").toString().toLowerCase();
+    const tokenType = (token.token || "").toString().toLowerCase();
+    const attribute = token.attribute
+      ? token.attribute.toString().toLowerCase()
+      : "";
+    const searchLower = filterText.toLowerCase();
+
+    return (
+      lexeme.includes(searchLower) ||
+      tokenType.includes(searchLower) ||
+      attribute.includes(searchLower)
+    );
+  });
+
   const sortedTokens = [...filteredTokens].sort((a, b) => {
     if (!sortField) return 0;
 
-    const aValue = a[sortField] || "";
-    const bValue = b[sortField] || "";
+    const aValue = (a[sortField] || "").toString();
+    const bValue = (b[sortField] || "").toString();
 
     if (sortDirection === "asc") {
-      return aValue.toString().localeCompare(bValue.toString());
+      return aValue.localeCompare(bValue);
     } else {
-      return bValue.toString().localeCompare(aValue.toString());
+      return bValue.localeCompare(aValue);
     }
   });
 
@@ -76,12 +94,22 @@ const TokenTable = ({ tokens }) => {
     setSortDirection("asc");
   };
 
-  const tokenTypes = [...new Set(tokens.map((token) => token.token))];
+  const tokenTypes = [
+    ...new Set(normalizedTokens.map((token) => token.token).filter(Boolean)),
+  ];
   const hasFilters = filterText || sortField;
+
+  const copyToClipboard = async (text) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      // You could add a toast notification here
+    } catch (err) {
+      console.error("Failed to copy:", err);
+    }
+  };
 
   return (
     <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
-      {/* Table Header */}
       <div className="p-4 bg-slate-50 border-b border-slate-200">
         <div className="flex flex-col sm:flex-row gap-3 justify-between items-start sm:items-center">
           <div className="flex items-center gap-2">
@@ -89,7 +117,7 @@ const TokenTable = ({ tokens }) => {
               Token Analysis
             </h3>
             <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">
-              {filteredTokens.length} of {tokens.length} tokens
+              {filteredTokens.length} of {normalizedTokens.length} tokens
             </span>
           </div>
 
@@ -115,7 +143,7 @@ const TokenTable = ({ tokens }) => {
           </div>
         </div>
 
-        {/* Advanced Filters */}
+        {/*  Filters */}
         {showFilters && (
           <div className="mt-3 p-4 bg-white rounded-lg border border-slate-200">
             <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
@@ -124,7 +152,6 @@ const TokenTable = ({ tokens }) => {
                   Filter by token type
                 </label>
                 <select
-                  value={filterText}
                   onChange={(e) => setFilterText(e.target.value)}
                   className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
                 >
@@ -156,6 +183,9 @@ const TokenTable = ({ tokens }) => {
         <table className="w-full">
           <thead className="bg-slate-75">
             <tr>
+              <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase tracking-wider">
+                #
+              </th>
               {["lexeme", "token", "attribute"].map((field) => (
                 <th
                   key={field}
@@ -163,7 +193,13 @@ const TokenTable = ({ tokens }) => {
                   className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase tracking-wider cursor-pointer hover:bg-slate-100 transition-colors group"
                 >
                   <div className="flex items-center">
-                    <span className="capitalize">{field}</span>
+                    <span className="capitalize">
+                      {field === "lexeme"
+                        ? "Value"
+                        : field === "token"
+                        ? "Type"
+                        : field}
+                    </span>
                     {getSortIcon(field)}
                     {!getSortIcon(field) && (
                       <FiChevronUp className="w-3 h-3 ml-1 opacity-0 group-hover:opacity-50 transition-opacity" />
@@ -177,7 +213,7 @@ const TokenTable = ({ tokens }) => {
             {sortedTokens.length === 0 ? (
               <tr>
                 <td
-                  colSpan="3"
+                  colSpan="4"
                   className="px-4 py-8 text-center text-slate-500 text-sm"
                 >
                   <FiInfo className="w-5 h-5 mx-auto mb-2 text-slate-400" />
@@ -187,25 +223,30 @@ const TokenTable = ({ tokens }) => {
             ) : (
               sortedTokens.map((token, index) => (
                 <tr
-                  key={index}
+                  key={token._index || index}
                   className="hover:bg-slate-50 transition-colors group"
                 >
+                  <td className="px-4 py-3 text-sm text-slate-500">
+                    {token._index !== undefined ? token._index + 1 : index + 1}
+                  </td>
                   <td className="px-4 py-3 whitespace-nowrap">
                     <div className="flex items-center">
                       <span
                         className="text-sm font-mono bg-slate-100 rounded px-2 py-1 font-medium text-slate-800 cursor-pointer hover:bg-slate-200 transition-colors"
-                        onClick={() =>
-                          navigator.clipboard.writeText(token.lexeme)
-                        }
+                        onClick={() => copyToClipboard(token.lexeme)}
                         title="Click to copy"
                       >
-                        {token.lexeme}
+                        {token.lexeme || "—"}
                       </span>
                     </div>
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap">
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                      {token.token}
+                    <span
+                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getTokenTypeColor(
+                        token.token
+                      )}`}
+                    >
+                      {token.token || "UNKNOWN"}
                     </span>
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-sm text-slate-600">
@@ -220,7 +261,6 @@ const TokenTable = ({ tokens }) => {
         </table>
       </div>
 
-      {/* Table Footer */}
       {sortedTokens.length > 0 && (
         <div className="px-4 py-3 bg-slate-50 border-t border-slate-200 text-xs text-slate-500">
           Showing {sortedTokens.length} token
@@ -231,6 +271,33 @@ const TokenTable = ({ tokens }) => {
       )}
     </div>
   );
+};
+
+// token type colors
+const getTokenTypeColor = (type) => {
+  if (!type) return "bg-gray-100 text-gray-800";
+
+  const typeUpper = type.toUpperCase();
+  const colorMap = {
+    IDENTIFIER: "bg-purple-100 text-purple-800",
+    OPERATOR: "bg-blue-100 text-blue-800",
+    NUMBER: "bg-green-100 text-green-800",
+    LITERAL: "bg-green-100 text-green-800",
+    KEYWORD: "bg-red-100 text-red-800",
+    DELIMITER: "bg-yellow-100 text-yellow-800",
+    ASSIGNMENT: "bg-indigo-100 text-indigo-800",
+    COMMENT: "bg-gray-100 text-gray-600",
+    STRING: "bg-pink-100 text-pink-800",
+    PUNCTUATION: "bg-orange-100 text-orange-800",
+  };
+
+  for (const [key, value] of Object.entries(colorMap)) {
+    if (typeUpper.includes(key)) {
+      return value;
+    }
+  }
+
+  return "bg-gray-100 text-gray-800";
 };
 
 export default TokenTable;
