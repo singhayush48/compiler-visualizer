@@ -1,7 +1,5 @@
 # Compiler Visualizer
 
-![Compiler Visualizer Banner](https://compiler-visualizer-seven.vercel.app/compiler-visualizer.jpg)
-
 A comprehensive, interactive tool for visualizing the phases of a compiler. This educational platform helps programmers and students understand how compilers work by providing real-time visualization of lexical analysis, syntax analysis, semantic analysis, intermediate code generation, optimization, and code generation.
 
 ## Live Demo
