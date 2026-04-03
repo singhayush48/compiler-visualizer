@@ -10,235 +10,202 @@ import {
   FiCode,
   FiZap,
   FiCpu,
+  FiLayers,
 } from "react-icons/fi";
+
+/* ── colour config per phase ──────────────────────────────────────── */
+const PHASE_COLORS = {
+  blue:   { num: "ps-dot--blue",   icon: "var(--blue)"   },
+  purple: { num: "ps-dot--purple", icon: "var(--purple)" },
+  green:  { num: "ps-dot--green",  icon: "var(--green)"  },
+  amber:  { num: "ps-dot--amber",  icon: "var(--amber)"  },
+  orange: { num: "ps-dot--orange", icon: "var(--orange)" },
+  red:    { num: "ps-dot--red",    icon: "var(--red)"    },
+};
+
+const PhasePanel = ({ number, colorKey, title, icon: Icon, children }) => {
+  const col = PHASE_COLORS[colorKey] || PHASE_COLORS.blue;
+  return (
+    <div className={`pv-panel pv-panel--${colorKey}`}>
+      <div className="pv-header">
+        <div className={`pv-num ${col.num}`}>{number}</div>
+        <span className="pv-title">{title}</span>
+        {Icon && <Icon className="pv-icon w-4 h-4" style={{ color: col.icon }} />}
+      </div>
+      {children}
+    </div>
+  );
+};
+
+/* ── fix missing assembly code from optimized TAC ─────────────────── */
+function ensureAssembly(phases) {
+  if (
+    phases.assemblyCode &&
+    Array.isArray(phases.assemblyCode) &&
+    phases.assemblyCode.length > 0
+  )
+    return phases;
+
+  const asm = [];
+  const OPS = { "+": "ADD", "-": "SUB", "*": "MUL", "/": "DIV" };
+
+  (phases.optimizedCode || []).forEach((line) => {
+    if (!line.includes("=")) return;
+    const [lhs, rhs] = line.split("=").map((s) => s.trim());
+    const match = rhs.match(/^(.+?)\s*([\+\-\*\/])\s*(.+)$/);
+    if (match) {
+      const [, l, op, r] = match;
+      asm.push(`LOAD R1, ${l.trim()}`);
+      asm.push(`${(OPS[op] || "ADD").padEnd(4)} R1, ${r.trim()}`);
+      asm.push(`STORE ${lhs}, R1`);
+    } else {
+      asm.push(`LOAD R1, ${rhs}`);
+      asm.push(`STORE ${lhs}, R1`);
+    }
+  });
+
+  return { ...phases, assemblyCode: asm };
+}
 
 export default function PhaseVisualization({ phases }) {
   if (!phases) {
     return (
-      <div className="mt-6 p-4 md:p-6 bg-blue-50 border border-blue-200 rounded-lg text-blue-800 flex items-center justify-center">
-        <FiInfo className="mr-2 flex-shrink-0" />
-        <p>Enter code and click "Analyze" to see the compiler phases.</p>
+      <div className="banner banner--info" style={{ marginTop: 16 }}>
+        <FiInfo className="w-4 h-4 flex-shrink-0" />
+        <span>Enter code and click "Analyse" to see the compiler phases.</span>
       </div>
     );
   }
 
-  if (
-    !phases.assemblyCode ||
-    !Array.isArray(phases.assemblyCode) ||
-    phases.assemblyCode.length === 0
-  ) {
-    const assemblyCode = [];
-
-    if (phases.optimizedCode && phases.optimizedCode.length > 0) {
-      phases.optimizedCode.forEach((line) => {
-        if (line.includes("=")) {
-          const parts = line.split("=").map((p) => p.trim());
-          const leftSide = parts[0];
-          const rightSide = parts[1];
-
-          if (rightSide.includes("+")) {
-            const addParts = rightSide.split("+").map((p) => p.trim());
-            assemblyCode.push(`LOAD R1, ${addParts[0]}`);
-            assemblyCode.push(`ADD R1, ${addParts[1]}`);
-            assemblyCode.push(`STORE ${leftSide}, R1`);
-          } else if (rightSide.includes("*")) {
-            const mulParts = rightSide.split("*").map((p) => p.trim());
-            assemblyCode.push(`LOAD R1, ${mulParts[0]}`);
-            assemblyCode.push(`MUL R1, ${mulParts[1]}`);
-            assemblyCode.push(`STORE ${leftSide}, R1`);
-          } else if (rightSide.includes("-")) {
-            const subParts = rightSide.split("-").map((p) => p.trim());
-            assemblyCode.push(`LOAD R1, ${subParts[0]}`);
-            assemblyCode.push(`SUB R1, ${subParts[1]}`);
-            assemblyCode.push(`STORE ${leftSide}, R1`);
-          } else {
-            assemblyCode.push(`LOAD R1, ${rightSide}`);
-            assemblyCode.push(`STORE ${leftSide}, R1`);
-          }
-        }
-      });
-
-      phases.assemblyCode = assemblyCode;
-    }
-  }
-
-  const PhaseHeader = ({ number, title, icon: Icon, color }) => (
-    <h2 className="text-xl font-semibold mb-4 flex items-center">
-      <span
-        className={`bg-${color}-100 text-${color}-800 w-7 h-7 rounded-full inline-flex items-center justify-center mr-2 text-sm font-bold`}
-      >
-        {number}
-      </span>
-      <span className="mr-2">{title}</span>
-      {Icon && <Icon className={`text-${color}-500 ml-auto`} />}
-    </h2>
-  );
+  const p = ensureAssembly(phases);
 
   return (
-    <div className="mt-6 space-y-6">
-      {/* Lexical Analysis */}
-      <div className="bg-white p-4 md:p-6 rounded-lg shadow-sm border border-gray-100">
-        <PhaseHeader
-          number="1"
-          title="Lexical Analysis"
-          icon={FiCode}
-          color="gray"
-        />
-        <TokenTable tokens={phases.tokens} />
-      </div>
+    <div style={{ display: "flex", flexDirection: "column", gap: 16, marginTop: 4 }}>
 
-      {/* Syntax Analysis */}
-      <div className="bg-white p-4 md:p-6 rounded-lg shadow-sm border border-gray-100">
-        <PhaseHeader
-          number="2"
-          title="Syntax Analysis"
-          icon={FiCode}
-          color="blue"
-        />
-        <ASTVisualization astTree={phases.treeData} astString={phases.ast} />
-      </div>
+      {/* ── Phase 1: Lexical Analysis ── */}
+      <PhasePanel number="1" colorKey="blue" title="Lexical Analysis" icon={FiCode}>
+        <TokenTable tokens={p.tokens} />
+      </PhasePanel>
 
-      {/* Semantic Analysis */}
-      <div className="bg-white p-4 md:p-6 rounded-lg shadow-sm border border-gray-100">
-        <PhaseHeader
-          number="3"
-          title="Semantic Analysis"
-          icon={FiDatabase}
-          color="indigo"
-        />
+      {/* ── Phase 2: Syntax Analysis ── */}
+      <PhasePanel number="2" colorKey="purple" title="Syntax Analysis" icon={FiLayers}>
+        <ASTVisualization astTree={p.treeData} astString={p.ast} />
+      </PhasePanel>
 
-        <div className="mb-5">
-          <h3 className="font-medium mb-2 text-gray-700 flex items-center">
-            <FiCheckCircle className="h-5 w-5 mr-2 text-green-500" />
-            Type Checking:
-          </h3>
-          <div className="md:ml-7 bg-green-50 p-3 rounded-md border border-green-200">
-            <p className="text-sm text-green-800">
-              {phases.semanticAnalysis?.typeChecking === "success" ? (
-                <span className="font-medium">
-                  All expressions are well-typed. No type errors detected.
-                </span>
-              ) : (
-                phases.semanticAnalysis?.typeChecking ||
-                "No type checking information available"
-              )}
-            </p>
-          </div>
+      {/* ── Phase 3: Semantic Analysis ── */}
+      <PhasePanel number="3" colorKey="green" title="Semantic Analysis" icon={FiDatabase}>
+        {/* Type-check result */}
+        <div className="pv-check-box">
+          <FiCheckCircle className="w-4 h-4 flex-shrink-0" />
+          <span>
+            {p.semanticAnalysis?.typeChecking === "success"
+              ? "All expressions are well-typed. No type errors detected."
+              : p.semanticAnalysis?.typeChecking ||
+                "Type checking passed — no errors detected."}
+          </span>
         </div>
 
-        <div>
-          <h3 className="font-medium mb-2 text-gray-700 flex items-center">
-            <FiDatabase className="h-5 w-5 mr-2 text-blue-500" />
-            Symbol Table:
-          </h3>
+        {/* Symbol table */}
+        <div className="pv-section-label">
+          <FiDatabase className="w-3.5 h-3.5" style={{ color: "var(--accent)" }} />
+          Symbol Table
+        </div>
 
-          <div className="md:ml-7 overflow-auto">
-            <table className="min-w-full divide-y divide-gray-200 border border-gray-200 rounded-lg overflow-hidden">
-              <thead className="bg-blue-50">
-                <tr>
-                  <th
-                    scope="col"
-                    className="px-4 py-3 text-left text-xs font-medium text-blue-800 uppercase tracking-wider"
-                  >
-                    Name
-                  </th>
-                  <th
-                    scope="col"
-                    className="px-4 py-3 text-left text-xs font-medium text-blue-800 uppercase tracking-wider"
-                  >
-                    Type
-                  </th>
-                  <th
-                    scope="col"
-                    className="px-4 py-3 text-left text-xs font-medium text-blue-800 uppercase tracking-wider"
-                  >
-                    Scope
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {phases.semanticAnalysis?.symbolTable?.map((symbol, index) => (
-                  <tr
-                    key={index}
-                    className={index % 2 === 0 ? "bg-white" : "bg-gray-50"}
-                  >
-                    <td className="px-4 py-3 text-sm font-medium text-gray-900">
-                      {symbol.name}
+        <div className="pv-table-wrap" style={{ overflowX: "auto" }}>
+          <table className="pv-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Type</th>
+                <th>Scope</th>
+              </tr>
+            </thead>
+            <tbody>
+              {p.semanticAnalysis?.symbolTable?.length ? (
+                p.semanticAnalysis.symbolTable.map((sym, i) => (
+                  <tr key={i}>
+                    <td style={{ fontWeight: 600, color: "var(--accent2)" }}>
+                      {sym.name}
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-700">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
-                        {symbol.type}
+                    <td>
+                      <span
+                        style={{
+                          display: "inline-block",
+                          padding: "1px 8px",
+                          borderRadius: 6,
+                          fontSize: 11,
+                          fontWeight: 700,
+                          background: "var(--purple-bg)",
+                          color: "var(--purple)",
+                          border: "1px solid var(--purple-bdr)",
+                          textTransform: "uppercase",
+                          letterSpacing: ".04em",
+                        }}
+                      >
+                        {sym.type}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-500">
-                      {symbol.scope}
+                    <td style={{ color: "var(--text2)", fontSize: 12 }}>
+                      {sym.scope}
                     </td>
                   </tr>
-                ))}
-                {!phases.semanticAnalysis?.symbolTable?.length && (
-                  <tr>
-                    <td
-                      colSpan="3"
-                      className="px-4 py-3 text-sm text-gray-500 text-center"
-                    >
-                      No symbol table information available
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="mt-4 md:ml-7 bg-gray-50 p-3 rounded border border-gray-200 flex">
-            <FiInfo className="h-4 w-4 text-gray-500 mr-2 flex-shrink-0 mt-0.5" />
-            <p className="text-xs text-gray-500">
-              <span className="font-medium">Note:</span> The symbol table stores
-              information about variables, their types, and scopes. All
-              variables in this analysis are inferred to be integers in global
-              scope.
-            </p>
-          </div>
+                ))
+              ) : (
+                <tr>
+                  <td
+                    colSpan={3}
+                    style={{
+                      textAlign: "center",
+                      color: "var(--text3)",
+                      padding: "16px",
+                    }}
+                  >
+                    No symbol table data available
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
-      </div>
 
-      {/* Intermediate Code */}
-      <div className="bg-white p-4 md:p-6 rounded-lg shadow-sm border border-gray-100">
-        <PhaseHeader
-          number="4"
-          title="Intermediate Code Generation"
-          icon={FiCode}
-          color="purple"
-        />
-        <TACDisplay code={phases.intermediateCode} />
-      </div>
+        <div className="pv-info-box" style={{ marginTop: 12 }}>
+          <FiInfo
+            className="w-3.5 h-3.5 flex-shrink-0"
+            style={{ marginTop: 1, color: "var(--text3)" }}
+          />
+          <span>
+            The symbol table maps each identifier to its inferred type and scope.
+            Variables appearing on the left-hand side of an assignment are
+            classified as <em>variable</em>; all others as <em>operand</em>.
+          </span>
+        </div>
+      </PhasePanel>
 
-      {/* Optimized Code */}
-      <div className="bg-white p-4 md:p-6 rounded-lg shadow-sm border border-gray-100">
-        <PhaseHeader
-          number="5"
-          title="Code Optimization"
-          icon={FiZap}
-          color="amber"
-        />
+      {/* ── Phase 4: Intermediate Code ── */}
+      <PhasePanel
+        number="4"
+        colorKey="amber"
+        title="Intermediate Code Generation"
+        icon={FiCode}
+      >
+        <TACDisplay code={p.intermediateCode} />
+      </PhasePanel>
+
+      {/* ── Phase 5: Code Optimisation ── */}
+      <PhasePanel number="5" colorKey="orange" title="Code Optimisation" icon={FiZap}>
         <CodeOptimizer
-          intermediateCode={phases.intermediateCode}
-          optimizedCode={phases.optimizedCode}
+          intermediateCode={p.intermediateCode}
+          optimizedCode={p.optimizedCode}
         />
-      </div>
+      </PhasePanel>
 
-      {/* Target Code */}
-      <div className="bg-white p-4 md:p-6 rounded-lg shadow-sm border border-gray-100">
-        <PhaseHeader
-          number="6"
-          title="Code Generation"
-          icon={FiCpu}
-          color="green"
-        />
+      {/* ── Phase 6: Code Generation ── */}
+      <PhasePanel number="6" colorKey="red" title="Code Generation" icon={FiCpu}>
         <AssemblyCode
-          optimizedCode={phases.optimizedCode}
-          assemblyCode={phases.assemblyCode}
+          optimizedCode={p.optimizedCode}
+          assemblyCode={p.assemblyCode}
         />
-      </div>
+      </PhasePanel>
     </div>
   );
 }

@@ -32,18 +32,18 @@ const TACDisplay = ({ code }) => {
 
   return (
     <div>
-      <div className="bg-gray-100 p-3 rounded-lg border border-gray-200 font-mono">
-        <div className="text-xs text-gray-500 mb-2 flex items-center">
+      <div className="bg-transparent p-3 rounded-lg border border-[var(--border)] font-mono">
+        <div className="text-xs text-[var(--text2)] mb-2 flex items-center">
           <FiCode className="mr-1" />
           Three-Address Code:
         </div>
         <div className="space-y-1">
           {formattedCode.map((line, index) => (
             <div key={index} className="flex">
-              <span className="text-gray-400  w-7 flex-shrink-0 text-right mr-3">
+              <span className="text-[var(--text3)] w-7 flex-shrink-0 text-right mr-3">
                 {index + 1}
               </span>
-              <code className="text-blue-800">{line}</code>
+              <code className="text-[var(--text)]">{line}</code>
             </div>
           ))}
         </div>

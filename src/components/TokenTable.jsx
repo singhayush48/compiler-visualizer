@@ -16,10 +16,10 @@ const TokenTable = ({ tokens }) => {
 
   if (!tokens || !Array.isArray(tokens) || tokens.length === 0) {
     return (
-      <div className="bg-slate-50 rounded-lg p-6 text-center">
-        <FiInfo className="w-8 h-8 text-slate-400 mx-auto mb-2" />
-        <p className="text-slate-500 text-sm">No tokens to display</p>
-        <p className="text-slate-400 text-xs mt-1">
+      <div className="bg-transparent rounded-lg p-6 text-center">
+        <FiInfo className="w-8 h-8 text-zinc-700 mx-auto mb-2" />
+        <p className="text-zinc-800 text-sm">No tokens to display</p>
+        <p className="text-zinc-800 text-xs mt-1">
           Code will be tokenized during analysis
         </p>
       </div>

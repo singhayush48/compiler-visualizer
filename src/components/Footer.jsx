@@ -1,32 +1,25 @@
-import { FiGithub, FiCode, FiHeart } from "react-icons/fi";
+import { FiCode, FiHeart, FiCpu } from "react-icons/fi";
+import { useTheme } from "../context/ThemeContext";
 
 const Footer = () => {
+  const { theme } = useTheme();
+
   return (
-    <footer className="py-5 bg-gray-50">
-      <div className="container mx-auto px-4">
-        <div className="flex flex-wrap items-center justify-center gap-2 text-center">
-          <div className="flex items-center text-sm text-gray-600">
-            <span>Built with</span>
-            <FiCode className="mx-1 text-blue-500" />
-            <span>&</span>
-            <FiHeart className="mx-1 text-red-500" />
-            <span>by</span>
-            <a
-              href="https://github.com/danielace1"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 font-medium text-indigo-600 hover:text-indigo-800 transition-colors mx-1 hover:underline"
-            >
-              Sudharsan
-              <FiGithub size={14} />
-            </a>
-          </div>
+    <footer className="cv-footer" data-theme={theme}>
+      <div className="cv-footer__inner">
+        <div className="cv-footer__left">
+          <FiCpu size={13} />
+          <span>Compiler Visualizer</span>
+          <span style={{ margin: "0 4px", opacity: 0.4 }}>—</span>
+          <span>Built with</span>
+          <FiCode size={12} style={{ margin: "0 2px", color: "var(--accent)" }} />
+          <span>&amp;</span>
+          <FiHeart size={12} style={{ margin: "0 2px", color: "var(--red)" }} />
+          <span>for CS students &amp; developers</span>
+        </div>
 
-          <span className="text-gray-400 mx-1">•</span>
-
-          <div className="text-xs text-gray-500">
-            &copy; {new Date().getFullYear()} Compiler Visualizer
-          </div>
+        <div className="cv-footer__right">
+          &copy; {new Date().getFullYear()} &nbsp;·&nbsp; All 6 compiler phases
         </div>
       </div>
     </footer>
